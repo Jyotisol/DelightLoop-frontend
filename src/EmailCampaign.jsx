@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import ReactFlow, { addEdge, Background, Controls, Handle } from 'react-flow-renderer';
+import ReactFlow, { addEdge, Background, Controls, Handle, useNodesState, useEdgesState } from 'reactflow';
 import io from 'socket.io-client';
-import { setNodes, setEdges, updateNode } from './emailStore';
+import { updateNode } from './emailStore';
+import 'reactflow/dist/style.css';
 import './index.css';
 
 const EmailNode = ({ data }) => (
@@ -44,14 +45,16 @@ const nodeTypes = {
   condition: ConditionNode,
 };
 
-const socket = io('http://localhost:3002', {
+const socket = io('https://delightloop-backend.onrender.com', {
   transports: ['websocket', 'polling'],
 });
-// https://delightloop-backend.onrender.com
+
 const EmailCampaign = () => {
   const dispatch = useDispatch();
-  const nodes = useSelector((state) => state.campaign.nodes);
-  const edges = useSelector((state) => state.campaign.edges);
+  const nodesFromRedux = useSelector((state) => state.campaign.nodes);
+  const edgesFromRedux = useSelector((state) => state.campaign.edges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(nodesFromRedux);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(edgesFromRedux);
   const [editingNode, setEditingNode] = useState(null);
 
   useEffect(() => {
@@ -63,20 +66,26 @@ const EmailCampaign = () => {
       console.log('Received campaign-update:', JSON.stringify({ nodes, edges }, null, 2));
       dispatch(setNodes(nodes));
       dispatch(setEdges(edges));
+      setNodes(nodes);
+      setEdges(edges);
     });
 
     return () => {
       socket.off('connect');
       socket.off('campaign-update');
     };
-  }, [dispatch]);
+  }, [dispatch, setNodes, setEdges]);
 
-  const onConnect = (params) => {
-    const newEdge = { id: `e${params.source}-${params.target}`, source: params.source, target: params.target };
-    const newEdges = addEdge(newEdge, edges);
-    dispatch(setEdges(newEdges));
-    socket.emit('campaign-update', { nodes, edges: newEdges });
-  };
+  const onConnect = useCallback(
+    (params) => {
+      const newEdge = { id: `e${params.source}-${params.target}`, source: params.source, target: params.target };
+      const newEdges = addEdge(newEdge, edges);
+      setEdges(newEdges);
+      dispatch(setEdges(newEdges));
+      socket.emit('campaign-update', { nodes, edges: newEdges });
+    },
+    [edges, nodes, setEdges, dispatch]
+  );
 
   const addEmailNode = () => {
     const newNode = {
@@ -91,6 +100,8 @@ const EmailCampaign = () => {
       const lastNode = nodes[nodes.length - 1];
       newEdges = [...edges, { id: `e${lastNode.id}-${newNode.id}`, source: lastNode.id, target: newNode.id }];
     }
+    setNodes(newNodes);
+    setEdges(newEdges);
     dispatch(setNodes(newNodes));
     dispatch(setEdges(newEdges));
     socket.emit('campaign-update', { nodes: newNodes, edges: newEdges });
@@ -109,6 +120,8 @@ const EmailCampaign = () => {
       const lastNode = nodes[nodes.length - 1];
       newEdges = [...edges, { id: `e${lastNode.id}-${newNode.id}`, source: lastNode.id, target: newNode.id }];
     }
+    setNodes(newNodes);
+    setEdges(newEdges);
     dispatch(setNodes(newNodes));
     dispatch(setEdges(newEdges));
     socket.emit('campaign-update', { nodes: newNodes, edges: newEdges });
@@ -127,6 +140,8 @@ const EmailCampaign = () => {
       const lastNode = nodes[nodes.length - 1];
       newEdges = [...edges, { id: `e${lastNode.id}-${newNode.id}`, source: lastNode.id, target: newNode.id }];
     }
+    setNodes(newNodes);
+    setEdges(newEdges);
     dispatch(setNodes(newNodes));
     dispatch(setEdges(newEdges));
     socket.emit('campaign-update', { nodes: newNodes, edges: newEdges });
@@ -135,6 +150,8 @@ const EmailCampaign = () => {
   const deleteNode = (id) => {
     const newNodes = nodes.filter(n => n.id !== id);
     const newEdges = edges.filter(e => e.source !== id && e.target !== id);
+    setNodes(newNodes);
+    setEdges(newEdges);
     dispatch(setNodes(newNodes));
     dispatch(setEdges(newEdges));
     socket.emit('campaign-update', { nodes: newNodes, edges: newEdges });
@@ -147,16 +164,21 @@ const EmailCampaign = () => {
   const saveNodeChanges = () => {
     if (!editingNode) return;
     const updatedNodes = nodes.map(n => (n.id === editingNode.id ? editingNode : n));
+    setNodes(updatedNodes);
     dispatch(setNodes(updatedNodes));
     socket.emit('campaign-update', { nodes: updatedNodes, edges });
     setEditingNode(null);
   };
 
-  const onNodeDragStop = (event, node) => {
-    const updatedNode = { ...node, position: { x: node.position.x, y: node.position.y } };
-    dispatch(updateNode(updatedNode));
-    socket.emit('campaign-update', { nodes: nodes.map(n => (n.id === node.id ? updatedNode : n)), edges });
-  };
+  const onNodeDragStop = useCallback(
+    (event, node) => {
+      const updatedNode = { ...node, position: { x: node.position.x, y: node.position.y } };
+      setNodes(nodes => nodes.map(n => (n.id === node.id ? updatedNode : n)));
+      dispatch(updateNode(updatedNode));
+      socket.emit('campaign-update', { nodes: nodes.map(n => (n.id === node.id ? updatedNode : n)), edges });
+    },
+    [setNodes, dispatch, nodes, edges]
+  );
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -275,6 +297,8 @@ const EmailCampaign = () => {
             }))}
             edges={edges}
             onConnect={onConnect}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
             onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
             fitView
