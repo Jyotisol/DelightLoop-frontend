@@ -44,10 +44,10 @@ const nodeTypes = {
   condition: ConditionNode,
 };
 
-const socket = io('https://delightloop-backend.onrender.com', {
+const socket = io('http://localhost:3002', {
   transports: ['websocket', 'polling'],
 });
-
+// https://delightloop-backend.onrender.com
 const EmailCampaign = () => {
   const dispatch = useDispatch();
   const nodes = useSelector((state) => state.campaign.nodes);
