@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import ReactFlow, { addEdge, Background, Controls, Handle, useNodesState, useEdgesState } from 'reactflow';
 import io from 'socket.io-client';
-import { updateNode } from './emailStore';
+import { updateNode, setNodes as setReduxNodes, setEdges as setReduxEdges } from './emailStore';
 import 'reactflow/dist/style.css';
 import './index.css';
 
+// Define custom node components
 const EmailNode = ({ data }) => (
   <div className="p-4 bg-blue-100 border border-blue-500 rounded shadow">
     <Handle type="target" position="top" />
@@ -39,6 +40,7 @@ const ConditionNode = ({ data }) => (
   </div>
 );
 
+// Define nodeTypes after components
 const nodeTypes = {
   email: EmailNode,
   delay: DelayNode,
@@ -64,10 +66,14 @@ const EmailCampaign = () => {
 
     socket.on('campaign-update', ({ nodes, edges }) => {
       console.log('Received campaign-update:', JSON.stringify({ nodes, edges }, null, 2));
-      dispatch(setNodes(nodes));
-      dispatch(setEdges(edges));
-      setNodes(nodes);
-      setEdges(edges);
+      if (Array.isArray(nodes) && Array.isArray(edges)) {
+        dispatch(setReduxNodes(nodes));
+        dispatch(setReduxEdges(edges));
+        setNodes(nodes);
+        setEdges(edges);
+      } else {
+        console.error('Invalid campaign-update payload:', { nodes, edges });
+      }
     });
 
     return () => {
@@ -81,7 +87,7 @@ const EmailCampaign = () => {
       const newEdge = { id: `e${params.source}-${params.target}`, source: params.source, target: params.target };
       const newEdges = addEdge(newEdge, edges);
       setEdges(newEdges);
-      dispatch(setEdges(newEdges));
+      dispatch(setReduxEdges(newEdges));
       socket.emit('campaign-update', { nodes, edges: newEdges });
     },
     [edges, nodes, setEdges, dispatch]
@@ -102,8 +108,8 @@ const EmailCampaign = () => {
     }
     setNodes(newNodes);
     setEdges(newEdges);
-    dispatch(setNodes(newNodes));
-    dispatch(setEdges(newEdges));
+    dispatch(setReduxNodes(newNodes));
+    dispatch(setReduxEdges(newEdges));
     socket.emit('campaign-update', { nodes: newNodes, edges: newEdges });
   };
 
@@ -122,8 +128,8 @@ const EmailCampaign = () => {
     }
     setNodes(newNodes);
     setEdges(newEdges);
-    dispatch(setNodes(newNodes));
-    dispatch(setEdges(newEdges));
+    dispatch(setReduxNodes(newNodes));
+    dispatch(setReduxEdges(newEdges));
     socket.emit('campaign-update', { nodes: newNodes, edges: newEdges });
   };
 
@@ -142,8 +148,8 @@ const EmailCampaign = () => {
     }
     setNodes(newNodes);
     setEdges(newEdges);
-    dispatch(setNodes(newNodes));
-    dispatch(setEdges(newEdges));
+    dispatch(setReduxNodes(newNodes));
+    dispatch(setReduxEdges(newEdges));
     socket.emit('campaign-update', { nodes: newNodes, edges: newEdges });
   };
 
@@ -152,8 +158,8 @@ const EmailCampaign = () => {
     const newEdges = edges.filter(e => e.source !== id && e.target !== id);
     setNodes(newNodes);
     setEdges(newEdges);
-    dispatch(setNodes(newNodes));
-    dispatch(setEdges(newEdges));
+    dispatch(setReduxNodes(newNodes));
+    dispatch(setReduxEdges(newEdges));
     socket.emit('campaign-update', { nodes: newNodes, edges: newEdges });
   };
 
@@ -165,7 +171,7 @@ const EmailCampaign = () => {
     if (!editingNode) return;
     const updatedNodes = nodes.map(n => (n.id === editingNode.id ? editingNode : n));
     setNodes(updatedNodes);
-    dispatch(setNodes(updatedNodes));
+    dispatch(setReduxNodes(updatedNodes));
     socket.emit('campaign-update', { nodes: updatedNodes, edges });
     setEditingNode(null);
   };
